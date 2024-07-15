@@ -6,6 +6,7 @@ use App\Entity\Flight;
 use Fig\Http\Message\StatusCodeInterface;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 
 readonly class FlightsController extends ApiController
 {
@@ -79,6 +80,37 @@ readonly class FlightsController extends ApiController
 
         //Return the new response
         return $response->withStatus(StatusCodeInterface::STATUS_CREATED);
+    }
+
+    public function update(Request $request, Response $response, string $number): Response
+    {
+        $flight = $this->entityManager->getRepository(Flight::class)
+            ->findOneBy(["number" => $number]);
+
+        if(!$flight) {
+            return $response->withStatus(StatusCodeInterface::STATUS_NOT_FOUND);
+        }
+
+        $flightJson = $request->getBody()->getContents();
+
+        $flight = $this->serializer->deserialize(
+            $flightJson,
+            Flight::class,
+            $request->getAttribute("content-type")->format(),
+            [AbstractNormalizer::OBJECT_TO_POPULATE => $flight]
+        );
+
+        $this->entityManager->persist($flight);
+        $this->entityManager->flush();
+
+        $jsonFlight = $this->serializer->serialize(
+            ["flight" => $flight],
+            $request->getAttribute("content-type")->format()
+        );
+
+        $response->getBody()->write($jsonFlight);
+
+        return $response;
     }
 
     public function destroy(Request $request, Response $response, string $number): Response
